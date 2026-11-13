@@ -1,92 +1,90 @@
-from flask import Flask, render_template, request, jsonify
-import pickle
-import os
+import streamlit as st
 import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
 
-app = Flask(__name__)
+st.set_page_config(page_title="Predictive Customer Churn Studio", page_icon="📊", layout="wide")
 
-model_path = 'churn_model.pkl'
-if os.path.exists(model_path):
-    with open(model_path, 'rb') as f:
-        model = pickle.load(f)
-else:
-    model = None
+st.markdown("<h1 style='text-align: center;'>📊 Predictive Customer Churn & Attrition Studio</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Task 3: Telecom Customer Churn Intelligence Dashboard</p>", unsafe_allow_html=True)
+st.markdown("---")
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if not model:
-        return jsonify({'error': 'Churn model not loaded or trained.'}), 500
-    
-    data = request.get_json()
-    try:
-        input_data = pd.DataFrame([{
-            'tenure': float(data.get('tenure', 12)),
-            'monthly_charges': float(data.get('monthly_charges', 65.0)),
-            'total_charges': float(data.get('total_charges', 800.0)),
-            'contract': str(data.get('contract', 'Month-to-month')),
-            'payment_method': str(data.get('payment_method', 'Electronic check'))
-        }])
-    except Exception as e:
-        return jsonify({'error': f'Invalid input format: {e}'}), 400
-    
-    prediction = model.predict(input_data)[0]
-    probabilities = model.predict_proba(input_data)[0]
-    
-    churn_prob = float(probabilities[1]) * 100
-    retain_prob = float(probabilities[0]) * 100
-    result_label = "Churn (Attrition Risk)" if prediction == 1 else "Retained (Loyal Customer)"
-    
-    return jsonify({
-        'prediction': result_label,
-        'churn_risk_score': round(churn_prob, 2),
-        'retain_score': round(retain_prob, 2),
-        'is_churn': bool(prediction == 1)
+# Load or generate model pipeline
+@st.cache_resource
+def load_trained_model():
+    np.random.seed(42)
+    n_samples = 1000
+    df = pd.DataFrame({
+        'tenure': np.random.randint(1, 72, n_samples),
+        'monthly_charges': np.random.uniform(20.0, 120.0, n_samples),
+        'total_charges': np.random.uniform(50.0, 8000.0, n_samples),
+        'contract': np.random.choice(['Month-to-month', 'One year', 'Two year'], n_samples, p=[0.5, 0.3, 0.2]),
+        'payment_method': np.random.choice(['Electronic check', 'Mailed check', 'Bank transfer', 'Credit card'], n_samples),
+        'churn': np.random.choice(['Yes', 'No'], n_samples, p=[0.27, 0.73])
     })
+    
+    X = df.drop(columns=['churn'])
+    y = df['churn'].apply(lambda x: 1 if x == 'Yes' else 0)
+    
+    numeric_features = ['tenure', 'monthly_charges', 'total_charges']
+    categorical_features = ['contract', 'payment_method']
+    
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', StandardScaler(), numeric_features),
+            ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+        ]
+    )
+    
+    pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('classifier', RandomForestClassifier(n_estimators=100, class_weight='balanced', random_state=42))
+    ])
+    
+    pipeline.fit(X, y)
+    return pipeline
 
-@app.route('/batch_predict', methods=['POST'])
-def batch_predict():
-    if not model:
-        return jsonify({'error': 'Model not loaded.'}), 500
-    
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded.'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'Empty filename.'}), 400
-    
-    try:
-        df = pd.read_csv(file)
-        required_cols = ['tenure', 'monthly_charges', 'total_charges', 'contract', 'payment_method']
-        for col in required_cols:
-            if col not in df.columns:
-                match = [c for c in df.columns if c.lower() == col]
-                if match:
-                    df.rename(columns={match[0]: col}, inplace=True)
-                else:
-                    df[col] = 12 if col == 'tenure' else (65.0 if 'charges' in col else 'Month-to-month')
-        
-        X_batch = df[required_cols]
-        preds = model.predict(X_batch)
-        probs = model.predict_proba(X_batch)[:, 1]
-        
-        df['Predicted_Status'] = ['Churn Risk' if p == 1 else 'Retained' for p in preds]
-        df['Churn_Probability_Pct'] = (probs * 100).round(2)
-        
-        return jsonify({
-            'success': True,
-            'total_analyzed': len(df),
-            'preview': df.head(10).to_dict(orient='records')
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+model = load_trained_model()
 
-if __name__ == '__main__':
-    if not os.path.exists('churn_model.pkl'):
-        from train_model import train_and_save
-        train_and_save()
-    app.run(debug=True, port=5000)
+# Sidebar / Main UI Layout
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("📝 Enter Subscriber Parameters")
+    tenure = st.slider("Tenure (Months)", 1, 72, 12)
+    monthly_charges = st.number_input("Monthly Charges ($)", 20.0, 150.0, 75.5)
+    total_charges = st.number_input("Total Charges ($)", 10.0, 10000.0, 950.0)
+    contract = st.selectbox("Contract Type", ['Month-to-month', 'One year', 'Two year'])
+    payment_method = st.selectbox("Payment Method", ['Electronic check', 'Mailed check', 'Bank transfer', 'Credit card'])
+    
+    predict_btn = st.button("🚀 Predict Churn Risk", type="primary", use_container_width=True)
+
+with col2:
+    st.subheader("🎯 Attrition Risk Output")
+    if predict_btn:
+        input_data = pd.DataFrame([{
+            'tenure': tenure,
+            'monthly_charges': monthly_charges,
+            'total_charges': total_charges,
+            'contract': contract,
+            'payment_method': payment_method
+        }])
+        
+        prediction = model.predict(input_data)[0]
+        prob = model.predict_proba(input_data)[0][1] * 100
+        
+        if prediction == 1:
+            st.error(f"⚠️ **High Churn Risk Detected!**")
+            st.metric(label="Calculated Attrition Probability", value=f"{prob:.2f}%")
+        else:
+            st.success(f"✅ **Customer Retained (Low Risk)**")
+            st.metric(label="Churn Probability", value=f"{prob:.2f}%")
+    else:
+        st.info("👈 Fill in the subscriber details on the left and click **Predict Churn Risk**.")
+
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: gray;'>Engineered by Vanshita Choudhary • Streamlit ML Dashboard</p>", unsafe_allow_html=True)
