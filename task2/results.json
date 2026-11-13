@@ -1,0 +1,75 @@
+{
+ "test": [
+  {
+   "Model": "OLS (all features)",
+   "RMSE ($)": 66953.0638,
+   "MAE ($)": 48609.3139,
+   "R2": 0.6579,
+   "Best alpha": "-"
+  },
+  {
+   "Model": "OLS (VIF-reduced)",
+   "RMSE ($)": 71518.5849,
+   "MAE ($)": 50107.7947,
+   "R2": 0.6097,
+   "Best alpha": "-"
+  },
+  {
+   "Model": "Ridge (L2)",
+   "RMSE ($)": 66968.1333,
+   "MAE ($)": 48618.2677,
+   "R2": 0.6578,
+   "Best alpha": 3.1623
+  },
+  {
+   "Model": "Lasso (L1)",
+   "RMSE ($)": 67002.2667,
+   "MAE ($)": 48574.7524,
+   "R2": 0.6574,
+   "Best alpha": 0.001
+  }
+ ],
+ "cv": [
+  {
+   "Model": "OLS (all features)",
+   "CV RMSE ($) mean": 65715.6,
+   "CV RMSE ($) std": 1373.2
+  },
+  {
+   "Model": "OLS (VIF-reduced)",
+   "CV RMSE ($) mean": 68404.4,
+   "CV RMSE ($) std": 1483.9
+  },
+  {
+   "Model": "Ridge (L2)",
+   "CV RMSE ($) mean": 65703.5,
+   "CV RMSE ($) std": 1352.5
+  },
+  {
+   "Model": "Lasso (L1)",
+   "CV RMSE ($) mean": 65701.9,
+   "CV RMSE ($) std": 1372.7
+  }
+ ],
+ "best": "Lasso (L1)",
+ "n_rows": 20640,
+ "vif_high": [
+  "households",
+  "total_bedrooms",
+  "total_rooms",
+  "median_income",
+  "population"
+ ],
+ "lasso_dropped": [
+  "total_rooms",
+  "total_bedrooms",
+  "income_x_rooms",
+  "ocean_proximity_ISLAND"
+ ],
+ "top_features": [
+  "median_income",
+  "latitude",
+  "longitude"
+ ],
+ "conclusion": "- **Best model:** Lasso (L1) (lowest 5-fold CV RMSE, $65,702). On the held-out test set: RMSE $67,002, MAE $48,575, R2 0.657.\n- **Regularisation / multicollinearity:** Lasso (L1) lowered CV RMSE from $65,716 (plain OLS) to $65,702 (0.0% lower, a marginal gain).\n- **Multicollinearity:** 5 features had VIF > 10 (households, total_bedrooms, total_rooms, median_income, population). OLS on the VIF-reduced set had CV RMSE $68,404 vs $65,716 with all features, so they still carried useful signal; regularisation is the gentler fix.\n- **Lasso feature selection:** dropped total_rooms, total_bedrooms, income_x_rooms, ocean_proximity_ISLAND.\n- **Strongest drivers (largest standardised Ridge coefficients):** median_income, latitude, longitude.\n- **Where it struggles:** largest errors in the Q5 (priciest) price range (MAE $87,120) vs Q4 (MAE $35,258).\n- **Next step:** try non-linear models (Random Forest / Gradient Boosting) and location clustering, since linear models cannot capture non-linear effects such as location."
+}

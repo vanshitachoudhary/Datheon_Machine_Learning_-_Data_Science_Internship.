@@ -1,0 +1,4 @@
+# For running the notebook locally (VS Code / command line)
+-r requirements.txt
+ipykernel
+nbconvert
